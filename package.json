@@ -26,7 +26,9 @@
     "build:sdk": "cd sdk && bun run build",
     "build:freebuff": "bun freebuff/cli/build.ts 0.0.0-dev",
     "buffbench": "bun --cwd evals run-buffbench",
-    "ci": "bun run build:sdk && bun run build:freebuff"
+    "ci": "bun run build:sdk && bun run build:freebuff",
+    "ultron:cortex": "node ultron-cortex/server.mjs",
+    "ultron:selftest": "node ultron-cortex/selftest.mjs"
   },
   "dependencies": {
     "canvas": "^3.2.0",
