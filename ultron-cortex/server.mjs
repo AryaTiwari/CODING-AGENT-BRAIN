@@ -1,5 +1,6 @@
 import http from 'node:http'
-import { runCodingTask } from './core.mjs'
+import { runCodingTask } from './orchestrator.mjs'
+import { loadCheckpoint } from './reliability.mjs'
 
 const host = process.env.ULTRON_CODING_BRAIN_HOST || '127.0.0.1'
 const port = Number(process.env.ULTRON_CODING_BRAIN_PORT || 8791)
@@ -40,7 +41,8 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, {
         ok: true,
         service: 'ULTRON Coding Brain',
-        version: '0.1.0',
+        version: '0.2.0',
+        architecture: 'investigate-or-council -> planner -> editor -> validation evidence -> reviewer',
         active: Boolean(active),
         activeTask: active ? { startedAt: active.startedAt, mode: active.mode, workspace: active.workspace } : null,
         mark3Url: process.env.ULTRON_MARK3_URL || 'http://127.0.0.1:8790',
@@ -48,6 +50,12 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'GET' && req.url === '/status') {
       return send(res, 200, { ok: true, active })
+    }
+    if (req.method === 'POST' && req.url === '/checkpoint') {
+      const data = await readBody(req)
+      const workspace = String(data.workspace || '').trim()
+      if (!workspace) return send(res, 400, { ok: false, error: 'workspace is required.' })
+      return send(res, 200, { ok: true, checkpoint: loadCheckpoint(workspace) })
     }
     if (req.method === 'POST' && req.url === '/run') {
       if (active) return send(res, 409, { ok: false, error: 'Coding Brain is already working on another repository task.', active })
@@ -72,5 +80,5 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(port, host, () => {
   console.log(`ULTRON Coding Brain listening at http://${host}:${port}`)
-  console.log('[Coding Brain] file-picker -> planner -> editor -> validator -> reviewer')
+  console.log('[Coding Brain] investigate/council -> planner -> editor -> evidence -> reviewer -> checkpoint')
 })
