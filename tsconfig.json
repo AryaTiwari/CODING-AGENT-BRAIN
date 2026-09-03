@@ -1,27 +1,13 @@
 {
-  "extends": "./tsconfig.base.json",
+  "extends": "../tsconfig.base.json",
   "compilerOptions": {
-    "noEmit": true,
     "baseUrl": ".",
+    "skipLibCheck": true,
+    "types": ["bun", "node"],
     "paths": {
-      "@codebuff/common/*": ["./common/src/*"],
-      "@codebuff/evals/*": ["./evals/*"],
-      "@codebuff/sdk": ["./sdk/src/index.ts"],
-      "@codebuff/sdk/*": ["./sdk/*"],
-      "@codebuff/agent-runtime/*": ["./packages/agent-runtime/src/*"],
-      "@codebuff/llm-providers/*": ["./packages/llm-providers/src/*"],
-      "@codebuff/code-map/*": ["./packages/code-map/*"]
+      "@codebuff/sdk": ["../sdk/src/index.ts"],
+      "@codebuff/common/*": ["../common/src/*"]
     }
   },
-  "files": [],
-  "references": [
-    { "path": "./common" },
-    { "path": "./agents" },
-    { "path": "./sdk" },
-    { "path": "./cli" },
-    { "path": "./evals" },
-    { "path": "./packages/agent-runtime" },
-    { "path": "./packages/code-map" },
-    { "path": "./packages/llm-providers" }
-  ]
+  "include": ["**/*.ts"]
 }
