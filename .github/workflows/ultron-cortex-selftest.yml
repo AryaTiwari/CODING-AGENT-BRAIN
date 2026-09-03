@@ -1,0 +1,23 @@
+name: ULTRON Cortex Self-Test
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ultron-cortex/**'
+      - '.github/workflows/ultron-cortex-selftest.yml'
+  pull_request:
+    paths:
+      - 'ultron-cortex/**'
+      - '.github/workflows/ultron-cortex-selftest.yml'
+
+jobs:
+  selftest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run deterministic Cortex self-test
+        run: node ultron-cortex/selftest.mjs
