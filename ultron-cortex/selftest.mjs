@@ -2,7 +2,8 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import { applyChanges, createSelfTestWorkspace, discoverWorkspace, rankFiles } from './core.mjs'
-import { evidenceFresh, loadCheckpoint, recordEvidence, saveCheckpoint, workingTreeFingerprint } from './reliability.mjs'
+import { extractJson } from './orchestrator.mjs'
+import { evidenceFresh, isBugTask, isComplexFeatureTask, loadCheckpoint, recordEvidence, saveCheckpoint, workingTreeFingerprint } from './reliability.mjs'
 
 const root = createSelfTestWorkspace()
 process.env.ULTRON_CORTEX_STATE_DIR = path.join(root, '.cortex-state')
@@ -18,6 +19,20 @@ try {
   assert(discovered.files.includes('package.json'))
   const ranked = rankFiles('fix the add function in math', discovered.files, 3)
   assert.equal(ranked[0], 'src/math.js')
+
+  const forgeFeature = [
+    'ULTRON FORGE MISSION: Build a CRM, test it and fix any failures.',
+    'SPECIALIST: Database Architect',
+    'JOB: Build Database Layer with LocalStorage and Supabase Adapter',
+    'INSTRUCTIONS: Implement the assigned job.',
+  ].join('\n')
+  assert.equal(isBugTask(forgeFeature), false, 'parent mission repair language must not turn a normal Forge build job into a bug investigation')
+  assert.equal(isComplexFeatureTask(forgeFeature), true, 'assigned Forge database build job must remain a complex feature task')
+  const forgeBug = forgeFeature.replace('JOB: Build Database Layer with LocalStorage and Supabase Adapter', 'JOB: Debug failing database adapter after restart')
+  assert.equal(isBugTask(forgeBug), true, 'an explicitly failing assigned Forge job must still use bug investigation')
+
+  assert.deepEqual(extractJson('Here is the result:\n```json\n{"ok":true,"files":["a.js"]}\n```\nDone.'), { ok: true, files: ['a.js'] })
+  assert.deepEqual(extractJson('prefix {"summary":"contains } inside string","ok":true} suffix'), { summary: 'contains } inside string', ok: true })
 
   const before = workingTreeFingerprint(root)
   const applied = applyChanges(root, [{
@@ -53,7 +68,7 @@ try {
   } catch { escaped = true }
   assert.equal(escaped, true)
 
-  console.log('ULTRON Coding Brain self-test passed: discovery, ranking, safe edit, path guard, working-tree fingerprint, evidence freshness, checkpoint restore.')
+  console.log('ULTRON Coding Brain self-test passed: discovery, Forge-aware classification, tolerant specialist JSON, safe edit, path guard, working-tree fingerprint, evidence freshness, checkpoint restore.')
 } finally {
   fs.rmSync(root, { recursive: true, force: true })
 }
