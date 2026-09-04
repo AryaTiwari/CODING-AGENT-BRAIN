@@ -60,7 +60,6 @@ export function workingTreeFingerprint(rawWorkspace) {
     try {
       const stat = fs.statSync(abs)
       if (!stat.isFile()) { hash.update('<non-file>\0'); continue }
-      // Safety valve for generated giant files accidentally left unignored.
       if (stat.size > 16 * 1024 * 1024) {
         hash.update(`<large:${stat.size}:${stat.mtimeMs}>\0`)
         continue
@@ -68,7 +67,6 @@ export function workingTreeFingerprint(rawWorkspace) {
       hash.update(fs.readFileSync(abs))
       hash.update('\0')
     } catch {
-      // Deleted tracked files remain in git ls-files, so deletion changes the hash.
       hash.update('<missing>\0')
     }
   }
@@ -160,16 +158,23 @@ export function isContinuationTask(task) {
   return /^(?:finish|continue|resume|retry|try again|keep going|proceed|do it|finish it)(?:\s+(?:it|this|that|now))?[.!?\s]*$/i.test(String(task || '').trim())
 }
 
-export function isBugTask(task) {
+function forgeAssignedObjective(task) {
   const value = String(task || '')
+  if (!/ULTRON FORGE MISSION:/i.test(value)) return value
+  const match = value.match(/(?:^|\n)JOB:\s*([^\n]+)/i)
+  return match?.[1]?.trim() || value
+}
+
+export function isBugTask(task) {
+  const value = forgeAssignedObjective(task)
   return /\b(?:bug|broken|error|exception|crash|failing|failure|fails|failed|regression|not working|doesn['’]?t work|stopped working|timeout|rate limit|wrong output|unexpected|fix why|debug|root cause|troubleshoot)\b/i.test(value)
 }
 
 export function isComplexFeatureTask(task) {
-  const value = String(task || '')
-  if (isBugTask(value)) return false
+  const value = forgeAssignedObjective(task)
+  if (isBugTask(task)) return false
   const action = /\b(?:implement|build|create|add|integrate|migrate|redesign|refactor|architect|introduce)\b/i.test(value)
-  const surface = /\b(?:feature|system|workflow|service|api|endpoint|backend|frontend|page|dashboard|authentication|authorization|database|schema|module|integration|architecture|pipeline)\b/i.test(value)
+  const surface = /\b(?:feature|system|workflow|service|api|endpoint|backend|frontend|page|dashboard|authentication|authorization|database|schema|module|integration|architecture|pipeline|model|types?|storage|adapter|crud)\b/i.test(value)
   const tiny = /\b(?:typo|rename|one line|single line|small text|comment only)\b/i.test(value)
   return action && surface && !tiny
 }
