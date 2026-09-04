@@ -10,12 +10,54 @@ import {
   workingTreeFingerprint,
 } from './reliability.mjs'
 
-function extractJson(text) {
+export function extractJson(text) {
   const raw = String(text || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '')
-  const start = raw.indexOf('{')
-  const end = raw.lastIndexOf('}')
-  if (start < 0 || end <= start) throw new Error('Specialist did not return a JSON object.')
-  return JSON.parse(raw.slice(start, end + 1))
+  try {
+    const direct = JSON.parse(raw)
+    if (direct && typeof direct === 'object' && !Array.isArray(direct)) return direct
+  } catch {}
+
+  for (let start = 0; start < raw.length; start += 1) {
+    if (raw[start] !== '{') continue
+    let depth = 0
+    let inString = false
+    let escaped = false
+    for (let end = start; end < raw.length; end += 1) {
+      const ch = raw[end]
+      if (inString) {
+        if (escaped) escaped = false
+        else if (ch === '\\') escaped = true
+        else if (ch === '"') inString = false
+        continue
+      }
+      if (ch === '"') { inString = true; continue }
+      if (ch === '{') depth += 1
+      else if (ch === '}') depth -= 1
+      if (depth === 0) {
+        try {
+          const parsed = JSON.parse(raw.slice(start, end + 1))
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed
+        } catch {}
+        break
+      }
+    }
+  }
+  throw new Error('Specialist did not return a JSON object.')
+}
+
+function recoverInvestigation(text, error) {
+  const raw = String(text || '').trim()
+  return {
+    rootCause: 'Pre-edit investigator returned an unstructured response; no root cause is treated as proven.',
+    confidence: 0,
+    evidence: raw ? [`Unstructured investigator output: ${raw.slice(0, 2500)}`] : [],
+    files: [],
+    hypotheses: [],
+    fixStrategy: 'Proceed with repository-grounded planning and editing. Treat this preflight formatting failure as non-fatal.',
+    avoid: ['Do not treat the unstructured investigator response as verified evidence.'],
+    specialistFormatRecovered: true,
+    specialistFormatError: String(error?.message || error || 'unknown formatting error'),
+  }
 }
 
 async function postJson(url, payload, timeoutMs = 120_000) {
@@ -63,8 +105,11 @@ async function investigate({ task, workspace, mark3Url }) {
       content: `BUG TASK:\n${task}\n\nBASELINE VALIDATION:\n${JSON.stringify(baseline).slice(0, 16000)}\n\nREPOSITORY FILE LIST:\n${snapshot.discovered.files.slice(0, 1200).join('\n')}\n\nLIKELY RELEVANT CONTENT:\n${snapshot.context}`,
     },
   ], 140_000)
+  let parsed
+  try { parsed = extractJson(response.text) }
+  catch (error) { parsed = recoverInvestigation(response.text, error) }
   return {
-    ...extractJson(response.text),
+    ...parsed,
     baseline,
     model: response.model,
     provider: response.provider,
@@ -94,10 +139,10 @@ async function planningCouncil({ task, workspace, mark3Url }) {
       try {
         council[name] = { ...extractJson(result.value.text), model: result.value.model, provider: result.value.provider }
       } catch (error) {
-        council[name] = { error: error.message }
+        council[name] = { error: error.message, raw: String(result.value.text || '').slice(0, 2500), nonFatal: true }
       }
     } else {
-      council[name] = { error: result.reason instanceof Error ? result.reason.message : String(result.reason) }
+      council[name] = { error: result.reason instanceof Error ? result.reason.message : String(result.reason), nonFatal: true }
     }
   })
   return council
@@ -128,6 +173,7 @@ function specialistContext(investigation, council) {
       hypotheses: investigation.hypotheses,
       fixStrategy: investigation.fixStrategy,
       avoid: investigation.avoid,
+      specialistFormatRecovered: investigation.specialistFormatRecovered || false,
     }).slice(0, 12000)}`)
   }
   if (council) {
@@ -170,6 +216,7 @@ export async function runCodingTask({ task, workspace, mode = 'apply', mark3Url 
           evidence: investigation.evidence,
           files: investigation.files,
           fixStrategy: investigation.fixStrategy,
+          specialistFormatRecovered: investigation.specialistFormatRecovered || false,
         },
       })
     } else if (isComplexFeatureTask(effectiveTask)) {
